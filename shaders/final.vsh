@@ -1,7 +1,7 @@
 #version 120
 
 // can pass from vertex to fragment
-varying vec4 textcoord;
+varying vec4 texcoord;
 
 void main() {
     gl_Position = ftransform(); // pos of current vert
