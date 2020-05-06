@@ -3,7 +3,6 @@
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
 uniform sampler2D gnormal;
-uniform vec3 skyColor;
 
 const int gcolorFormat = 1;
 const int gdepthFormat = 0;
@@ -11,26 +10,46 @@ const int gnormalFormat = 1;
 
 varying vec2 texcoord;
 varying vec3 lightDir;
-varying vec3 lightTint;
-varying vec3 skyTint;
+varying vec3 lightColor;
+varying vec3 skyColor;
+
+vec3 linearToGamma (vec3 color) {
+	return pow(color, vec3(1.0 / 2.2));
+}
+
+vec3 gammaToLinear (vec3 color) {
+	return pow(color, vec3(2.2));
+}
 
 void main() {
 	vec3 color = texture2D(gcolor, texcoord).rgb;
-	vec3 normal = texture2D(gnormal, texcoord).rgb * 2.0 - 1.0;
+	vec3 normal = texture2D(gnormal, texcoord).rgb;
 	vec4 depth = texture2D(gdepth, texcoord);
 
-	vec3 directionalLight = lightTint * max(dot(normal, lightDir), 0);
-	vec3 torchLight =  depth.x * vec3(1.0, .9, .8);
-	vec3 skyLight = depth.y * skyTint;
-	float emission = depth.w;
-	float ambient = 0.1;
-	vec3 phong = color * (directionalLight + torchLight + skyLight) + vec3(ambient); 
+	normal = normal * 2.0 - 1.0; // Readjust normals so they aren't broken
+
+	// vec3 albedo = gammaToLinear(color);
+	vec3 albedo = color;
+	
+	float emitterLightStrength = depth.x;
+	float skyLightStrength = depth.y;
+	bool applyPhongShading = depth.w == 0;
+
+	vec3 directionalLight = lightColor * max(dot(normal, lightDir), 0);
+	vec3 emitterLight =  emitterLightStrength * vec3(1.0, .9, .8); // For things like torches, glowstone
+	vec3 skyLight = skyLightStrength * skyColor;
+
+	vec3 ambient = vec3(0.2);
+	vec3 diffuse = albedo * (directionalLight + emitterLight + skyLight);
+	vec3 phong = diffuse + ambient; 
+
 	vec3 finalColor;
-	if (emission == 1) {
-		finalColor = color; // don't use phong model on emissive material
+	if (!applyPhongShading) {
+		finalColor = albedo; // don't use phong model 
 	} else {
 		finalColor = phong; // do use phong
 	}
+	// finalColor = linearToGamma(finalColor);
 
 /* DRAWBUFFERS:012 */
 	gl_FragData[0] = vec4(finalColor, 1.0); //gcolor
