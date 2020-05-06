@@ -4,6 +4,7 @@ uniform sampler2D gcolor;
 uniform sampler2D gdepth;
 uniform sampler2D gnormal;
 
+<<<<<<< HEAD
 uniform sampler2D gdepthtex;
 uniform sampler2D shadow;
 uniform vec3 cameraPosition;
@@ -15,6 +16,13 @@ uniform mat4 shadowProjection;
 const int gcolorFormat = 1;
 const int gdepthFormat = 0;
 const int gnormalFormat = 1;
+=======
+uniform float screenBrightness;
+
+// const int gcolorFormat = 1;
+// const int gdepthFormat = 0;
+// const int gnormalFormat = 1;
+>>>>>>> held emitters aren't shaded anymore
 
 varying vec2 texcoord;
 varying vec3 lightDir;
@@ -22,7 +30,7 @@ varying vec3 lightColor;
 varying vec3 skyColor;
 
 vec3 linearToGamma (vec3 color) {
-	return pow(color, vec3(1.0 / 2.2));
+	return pow(color, vec3(1 / 2.2));
 }
 
 vec3 gammaToLinear (vec3 color) {
@@ -78,20 +86,21 @@ void main() {
 	vec4 depth = texture2D(gdepth, texcoord);
 
 	normal = normal * 2.0 - 1.0; // Readjust normals so they aren't broken
-
-	// vec3 albedo = gammaToLinear(color);
-	vec3 albedo = color;
+	
+	float adjustedBrightness = 0.6 + 0.4 * screenBrightness;
+	vec3 albedo = gammaToLinear(color);
+	// vec3 albedo = color;
 	
 	float emitterLightStrength = depth.x;
 	float skyLightStrength = depth.y;
 	bool applyPhongShading = depth.w == 0;
 
-	vec3 directionalLight = lightColor * max(dot(normal, lightDir), 0);
+	vec3 directionalLight = skyLightStrength * lightColor * max(dot(normal, lightDir), 0);
 	vec3 emitterLight =  emitterLightStrength * vec3(1.0, .9, .8); // For things like torches, glowstone
-	vec3 skyLight = skyLightStrength * skyColor;
+	vec3 skyBrightness = skyLightStrength * skyColor;
 
-	vec3 ambient = vec3(0.2);
-	vec3 diffuse = albedo * (directionalLight + emitterLight + skyLight);
+	vec3 ambient = albedo * skyBrightness;
+	vec3 diffuse = albedo * (directionalLight + emitterLight);
 	vec3 phong = diffuse + ambient; 
 
 	vec3 finalColor;
@@ -100,7 +109,7 @@ void main() {
 	} else {
 		finalColor = phong; // do use phong
 	}
-	// finalColor = linearToGamma(finalColor);
+	finalColor = linearToGamma(adjustedBrightness * finalColor);
 
 	finalColor = calculateLitSurface(finalColor);
 
