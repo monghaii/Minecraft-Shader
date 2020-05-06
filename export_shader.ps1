@@ -1,0 +1,1 @@
+Compress-Archive -Path ./shaders -DestinationPath "./shaders.zip" -Update
