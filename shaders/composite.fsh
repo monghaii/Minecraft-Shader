@@ -58,6 +58,13 @@ float getSunVisibility(in vec2 coord) {
 	return step(shadowCoord.z - shadowMapSample, 0.01);
 }
 
+vec3 calculateLitSurface(in vec3 color) {
+	float sunlightVisibility = getSunVisibility(texcoord.st);
+	float ambientLighting = 0.3;
+
+	return color * (sunlightVisibility + ambientLighting);
+}
+
 void main() {
 	vec3 color = texture2D(gcolor, texcoord).rgb;
 	vec3 normal = texture2D(gnormal, texcoord).rgb * 2.0 - 1.0;
@@ -76,7 +83,7 @@ void main() {
 		finalColor = phong; // do use phong
 	}
 
-	finalColor *= getSunVisibility(texcoord.st);
+	finalColor = calculateLitSurface(finalColor);
 
 /* DRAWBUFFERS:012 */
 	gl_FragData[0] = vec4(finalColor, 1.0); //gcolor
