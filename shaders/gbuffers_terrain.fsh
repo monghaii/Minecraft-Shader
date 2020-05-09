@@ -8,9 +8,13 @@ varying vec2 texcoord;
 varying vec3 normal;
 varying vec4 glcolor;
 
+/* const gdepthFormat = RGBA16F */ 
+
 void main() {
 	vec4 color = texture2D(texture, texcoord) * glcolor;
 	// color *= texture2D(lightmap, lmcoord);
+
+	float isEmissive = ceil(lmcoord.s / 16.0);
 
 /* DRAWBUFFERS:012 */
 	gl_FragData[0] = color; //gcolor

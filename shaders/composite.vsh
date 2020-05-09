@@ -19,11 +19,11 @@ void main() {
 
 	if (isNight()) {
 		lightDir = normalize(moonPosition);
-		skyColor = vec3(0.01, 0.01, 0.015);
-		lightColor = vec3(.05);
+		lightColor = vec3(.1);
+		skyColor = vec3(0.0, 0.15, 0.25);
 	} else {
 		lightDir = normalize(sunPosition);
-		skyColor = vec3(0.3, 0.3, 0.35);
 		lightColor = vec3(1);
+		skyColor = vec3(1.0, 1.0, 0.9);
 	}
 }

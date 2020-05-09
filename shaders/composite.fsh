@@ -4,7 +4,6 @@ uniform sampler2D gcolor;
 uniform sampler2D gdepth;
 uniform sampler2D gnormal;
 
-<<<<<<< HEAD
 uniform sampler2D gdepthtex;
 uniform sampler2D shadow;
 uniform vec3 cameraPosition;
@@ -13,21 +12,17 @@ uniform mat4 gbufferProjectionInverse;
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
 
-const int gcolorFormat = 1;
-const int gdepthFormat = 0;
-const int gnormalFormat = 1;
-=======
 uniform float screenBrightness;
-
-// const int gcolorFormat = 1;
-// const int gdepthFormat = 0;
-// const int gnormalFormat = 1;
->>>>>>> held emitters aren't shaded anymore
 
 varying vec2 texcoord;
 varying vec3 lightDir;
 varying vec3 lightColor;
+varying float skyIntensity;
 varying vec3 skyColor;
+
+
+/*  const gdepthFormat = RGBA32F
+	const gcolorFormat = RGBA32F */ 
 
 vec3 linearToGamma (vec3 color) {
 	return pow(color, vec3(1 / 2.2));
@@ -80,6 +75,12 @@ vec3 calculateLitSurface(in vec3 color) {
 	return color * (sunlightVisibility + ambientLighting);
 }
 
+vec3 toHDR (in vec3 color) {
+	vec3 overExposed = color * 1.5;
+	vec3 underExposed = color * 0.5;
+	return mix(underExposed, overExposed, color);
+}
+
 void main() {
 	vec3 color = texture2D(gcolor, texcoord).rgb;
 	vec3 normal = texture2D(gnormal, texcoord).rgb;
@@ -87,7 +88,7 @@ void main() {
 
 	normal = normal * 2.0 - 1.0; // Readjust normals so they aren't broken
 	
-	float adjustedBrightness = 0.6 + 0.4 * screenBrightness;
+	float adjustedBrightness = 1.0;
 	vec3 albedo = gammaToLinear(color);
 	// vec3 albedo = color;
 	
@@ -95,13 +96,13 @@ void main() {
 	float skyLightStrength = depth.y;
 	bool applyPhongShading = depth.w == 0;
 
-	vec3 directionalLight = skyLightStrength * lightColor * max(dot(normal, lightDir), 0);
-	vec3 emitterLight =  emitterLightStrength * vec3(1.0, .9, .8); // For things like torches, glowstone
+	vec3 directionalLight = skyLightStrength * skyColor * max(dot(normal, lightDir), 0);
+	vec3 emitterLight =  emitterLightStrength * vec3(1.1, 1.05, 1.0); // For things like torches, glowstone
 	vec3 skyBrightness = skyLightStrength * skyColor;
 
-	vec3 ambient = albedo * skyBrightness;
-	vec3 diffuse = albedo * (directionalLight + emitterLight);
-	vec3 phong = diffuse + ambient; 
+	vec3 ambient = albedo * (skyBrightness + emitterLight);
+	vec3 diffuse = albedo * directionalLight;
+	vec3 phong = calculateLitSurface(diffuse) + ambient; 
 
 	vec3 finalColor;
 	if (!applyPhongShading) {
@@ -109,12 +110,17 @@ void main() {
 	} else {
 		finalColor = phong; // do use phong
 	}
-	finalColor = linearToGamma(adjustedBrightness * finalColor);
+	finalColor = toHDR(finalColor);
 
-	finalColor = calculateLitSurface(finalColor);
+	float brightness = dot(finalColor, vec3(0.2126, 0.7152, 0.0722)); 
+	
+	vec3 extractedBright = (brightness > 1.0 || !applyPhongShading) ? finalColor : vec3(0, 0, 0);
 
-/* DRAWBUFFERS:012 */
+	// finalColor = linearToGamma(adjustedBrightness * finalColor);
+
+	// finalColor = calculateLitSurface(finalColor);
+
+/* DRAWBUFFERS:04 */
 	gl_FragData[0] = vec4(finalColor, 1.0); //gcolor
-	gl_FragData[1] = vec4(vec3(depth), 1.0);
-	gl_FragData[2] = vec4(normal, 1.0);
+	gl_FragData[1] = vec4(extractedBright, 1.0); // for processing bloom
 }

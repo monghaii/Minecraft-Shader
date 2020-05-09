@@ -14,7 +14,7 @@ void main() {
 	vec4 color = texture2D(texture, texcoord) * glcolor;
 	// color *= texture2D(lightmap, lmcoord);
 
-	float isEmissive = ceil(heldBlockLightValue / 15.0);
+	float isEmissive = ceil(heldBlockLightValue / 16.0);
 /* DRAWBUFFERS:012 */
 	gl_FragData[0] = color; //gcolor
 	gl_FragData[1] = vec4(lmcoord.st, 0.0, isEmissive);
