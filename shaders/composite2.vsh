@@ -1,13 +1,29 @@
 #version 120
 
-uniform float viewWidth;
-uniform float viewHeight;
+uniform int worldTime;
+uniform vec3 sunPosition;
+uniform vec3 moonPosition;
 
 varying vec2 texcoord;
-varying vec2 imageSize;
+varying vec3 lightDir;
+varying vec3 lightColor;
+varying vec3 skyColor;
+
+bool isNight () {
+	return worldTime >= 12800 && worldTime <= 23215;
+}
 
 void main() {
 	gl_Position = ftransform();
 	texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
-    imageSize = vec2(viewWidth, viewHeight);
+
+	if (isNight()) {
+		lightDir = normalize(moonPosition);
+		lightColor = vec3(.1);
+		skyColor = vec3(0.0, 0.15, 0.25);
+	} else {
+		lightDir = normalize(sunPosition);
+		lightColor = vec3(1);
+		skyColor = vec3(0.9, 0.9, 0.8);
+	}
 }

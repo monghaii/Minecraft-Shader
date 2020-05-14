@@ -7,6 +7,7 @@ varying vec2 lmcoord;
 varying vec2 texcoord;
 varying vec3 normal;
 varying vec4 glcolor;
+varying float brightness;
 
 /* const gdepthFormat = RGBA16F */ 
 
@@ -18,6 +19,6 @@ void main() {
 
 /* DRAWBUFFERS:012 */
 	gl_FragData[0] = color; //gcolor
-	gl_FragData[1] = vec4(lmcoord.st, 0.0, 0.0);
+	gl_FragData[1] = vec4(lmcoord.st, brightness, 0.0);
 	gl_FragData[2] = vec4(normal * 0.5 + vec3(0.5), 1); // convert normal from range -1 : 1 to 0 : 1
 }

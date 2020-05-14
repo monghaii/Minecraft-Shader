@@ -1,28 +1,21 @@
 #version 120
 
-uniform sampler2D gcolor;
-uniform sampler2D gaux1; // extracted bright for bloom
+uniform sampler2D gaux2;
+uniform float viewWidth;
+uniform float viewHeight;
 
 varying vec2 texcoord;
-varying vec2 imageSize;
-
-uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
-
-// Bloom first pass
 
 void main() {
-	vec4 color = texture2D(gcolor, texcoord);
-
-    vec2 texOffset = vec2(1.0) / imageSize;
-    
-    vec3 result = vec3(0);
-    // Horizontal first
-    for (int i = 0; i < 5; i++) {
-        result += texture2D(gaux1, texcoord + vec2(texOffset.x * i, 0)).rgb * weight[i];
-        result += texture2D(gaux1, texcoord - vec2(texOffset.x * i, 0)).rgb * weight[i];
+    vec2 offset = vec2(1.0 / viewWidth, 1.0 / viewHeight);
+    float occlusion = 0.0;
+    for (int i = -2; i <= 2; i++) {
+        for (int j = -2; j <= 2; j++) {
+            occlusion += texture2D(gaux2, texcoord + offset * vec2(i, j)).r;
+        }
     }
-    
-    /* DRAWBUFFERS:04 */
-    gl_FragData[0] = color;
-    gl_FragData[1] = vec4(result, 1.0);
+    occlusion /= (5.0 * 5.0);
+
+    /* DRAWBUFFERS: 5 */
+    gl_FragData[0] = vec4(occlusion, occlusion, occlusion, 1.0);
 }

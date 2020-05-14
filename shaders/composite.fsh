@@ -1,126 +1,131 @@
 #version 120
 
-uniform sampler2D gcolor;
-uniform sampler2D gdepth;
-uniform sampler2D gnormal;
+// Followed and got some code from this article: https://learnopengl.com/Advanced-Lighting/SSAO
 
 uniform sampler2D gdepthtex;
-uniform sampler2D shadow;
-uniform vec3 cameraPosition;
-uniform mat4 gbufferModelViewInverse;
-uniform mat4 gbufferProjectionInverse;
-uniform mat4 shadowModelView;
-uniform mat4 shadowProjection;
+uniform sampler2D gnormal;
+uniform sampler2D noisetex;
 
-uniform float screenBrightness;
+uniform float frameTimeCounter;
+uniform float viewWdith;
+uniform float viewHeight;
+uniform float near;
+uniform float far;
+
+uniform mat4 gbufferProjection;
+uniform mat4 gbufferProjectionInverse;
 
 varying vec2 texcoord;
-varying vec3 lightDir;
-varying vec3 lightColor;
-varying float skyIntensity;
-varying vec3 skyColor;
 
+const int noiseTextureResolution = 64;
+const int kernelSamplesInt = 32;
+const float kernelSamples = 32.0;
+const float radius = 3.0;
 
-/*  const gdepthFormat = RGBA32F
-	const gcolorFormat = RGBA32F */ 
+int inc = 0;
 
-vec3 linearToGamma (vec3 color) {
-	return pow(color, vec3(1 / 2.2));
+// GLSL 1.2 doesn't have this, implementing from documentation
+float mySmoothstep (float edge0, float edge1, float x) {
+	float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
 }
 
-vec3 gammaToLinear (vec3 color) {
-	return pow(color, vec3(2.2));
+float rand () {
+	vec4 noise = texture2D(noisetex, texcoord);
+	vec2 co = vec2(inc + cos(noise.r * 25.0 + noise.g + frameTimeCounter * clamp(0.0, 256.0, length(gl_FragCoord))));
+	inc++;
+	return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
-float getDepth(in vec2 coord) {
-	return texture2D(gdepthtex, coord).r;
-}
+float lerp(float a, float b, float f) {
+    return a + f * (b - a);
+}  
 
-vec4 getCameraSpacePosition(in vec2 coord) {
-	float depth = getDepth(coord);
-	vec4 positionNdcSpace = vec4(coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-	vec4 positionCameraSpace = gbufferProjectionInverse * positionNdcSpace;
-	return positionCameraSpace / positionCameraSpace.w;
-}
-
-vec4 getWorldSpacePosition(in vec2 coord) {
-	vec4 positionCameraSpace = getCameraSpacePosition(coord);
-	vec4 positionWorldSpace = gbufferModelViewInverse * positionCameraSpace;
-	positionWorldSpace.xyz += cameraPosition.xyz;
-
-	return positionWorldSpace;
-}
-
-vec3 getShadowSpacePosition(in vec2 coord) {
-	vec4 positionWorldSpace = getWorldSpacePosition(coord);
-
-	positionWorldSpace.xyz -= cameraPosition;
-	vec4 positionShadowSpace = shadowModelView * positionWorldSpace;
-	positionShadowSpace = shadowProjection * positionShadowSpace;
-	positionShadowSpace /= positionShadowSpace.w;
-
-	return positionShadowSpace.xyz * 0.5 + 0.5;
-}
-
-float getSunVisibility(in vec2 coord) {
-	vec3 shadowCoord = getShadowSpacePosition(coord);
-	float shadowMapSample = texture2D(shadow, shadowCoord.st).r;
-	return step(shadowCoord.z - shadowMapSample, 0.01);
-}
-
-vec3 calculateLitSurface(in vec3 color) {
-	float sunlightVisibility = getSunVisibility(texcoord.st);
-	float ambientLighting = 0.3;
-
-	return color * (sunlightVisibility + ambientLighting);
-}
-
-vec3 toHDR (in vec3 color) {
-	vec3 overExposed = color * 1.5;
-	vec3 underExposed = color * 0.5;
-	return mix(underExposed, overExposed, color);
-}
-
-void main() {
-	vec3 color = texture2D(gcolor, texcoord).rgb;
-	vec3 normal = texture2D(gnormal, texcoord).rgb;
-	vec4 depth = texture2D(gdepth, texcoord);
-
-	normal = normal * 2.0 - 1.0; // Readjust normals so they aren't broken
-	
-	float adjustedBrightness = 1.0;
-	vec3 albedo = gammaToLinear(color);
-	// vec3 albedo = color;
-	
-	float emitterLightStrength = depth.x;
-	float skyLightStrength = depth.y;
-	bool applyPhongShading = depth.w == 0;
-
-	vec3 directionalLight = skyLightStrength * skyColor * max(dot(normal, lightDir), 0);
-	vec3 emitterLight =  emitterLightStrength * vec3(1.1, 1.05, 1.0); // For things like torches, glowstone
-	vec3 skyBrightness = skyLightStrength * skyColor;
-
-	vec3 ambient = albedo * (skyBrightness + emitterLight);
-	vec3 diffuse = albedo * directionalLight;
-	vec3 phong = calculateLitSurface(diffuse) + ambient; 
-
-	vec3 finalColor;
-	if (!applyPhongShading) {
-		finalColor = albedo; // don't use phong model 
-	} else {
-		finalColor = phong; // do use phong
+mat3 getTBN (in vec3 n) {
+	// get a random rotation vector
+	// vec3 randvec = vec3(
+	// 	rand() * 2.0 - 1.0,
+	// 	rand() * 2.0 - 1.0,
+	// 	0
+	// );
+	// randvec = normalize(randvec);
+	// b is gram schmidt result of n and randvec
+	// vec3 b = normalize(randvec - (n * dot(randvec, n)));
+	vec3 shortestcomp = vec3(0);
+	int index = 0;
+	for (int i = 1; i < 3; i++) {
+		index = n[i] < n[index] ? i : index;
 	}
-	finalColor = toHDR(finalColor);
+	shortestcomp[index] = 1;
+	vec3 b = cross(n, shortestcomp);
+	// t is the cross between n and b
+	vec3 t = cross(n, b);
+	return mat3(t, b, n);
+}
 
-	float brightness = dot(finalColor, vec3(0.2126, 0.7152, 0.0722)); 
-	
-	vec3 extractedBright = (brightness > 1.0 || !applyPhongShading) ? finalColor : vec3(0, 0, 0);
+vec4 getFragPos () {
+	vec4 screenCoords;
+	// Initially in NDC
+	screenCoords.xy = texcoord;
+	screenCoords.z = texture2D(gdepthtex, texcoord).r;
+	screenCoords.w = 1.0;
+	// To Clip Space
+	screenCoords.xyz = screenCoords.xyz * 2.0 - 1.0;
+	// To View Space
+	vec4 res = gbufferProjectionInverse * screenCoords;
+	res.xyz /= res.w;
+	return res;
+}
 
-	// finalColor = linearToGamma(adjustedBrightness * finalColor);
+float linearize (float d) {
+	return (2.0 * near) / (far + near - d * (far - near));
+}
 
-	// finalColor = calculateLitSurface(finalColor);
+// SSAO - Find out how occluded each fragment is
+void main() {
+	vec3 fragNormal = texture2D(gnormal, texcoord).rgb * 2.0 - 1.0;
+	mat3 TBN = getTBN(fragNormal);
 
-/* DRAWBUFFERS:04 */
-	gl_FragData[0] = vec4(finalColor, 1.0); //gcolor
-	gl_FragData[1] = vec4(extractedBright, 1.0); // for processing bloom
+	vec3 fragSample = texture2D(gdepthtex, texcoord).rgb;
+	float fragDepth = fragSample.z;
+	vec3 fragPos = getFragPos().xyz;
+
+	float occluded = 0.0;
+	// For a given fragment, sample points in a hemisphere around it. If a given sample is obstructed by geometry, the geometry will have less depth than the sample. 
+	// Total occlusion = sum of occluded samples / total samples
+	float len;
+	bool fuck;
+	for (int i = 0; i < kernelSamplesInt; i++) {
+		vec3 samplePos = vec3(
+			rand() * 2.0 - 1.0, // from -1.0 to 1.0
+			rand() * 2.0 - 1.0, // from -1.0 to 1.0
+			rand() // from 0.0 to 1.0
+		);
+		fuck = samplePos.z < 0;
+		// Put sample closer to origin
+		float scale = 1.0 / kernelSamples;
+		scale = lerp(0.1, 1.0, scale * scale);
+		samplePos *= scale;
+		// Transform samples to eye space
+		samplePos = TBN * samplePos;
+		samplePos = fragPos + samplePos * radius;
+		// Now to ndc
+		vec4 offset = vec4(samplePos, 1.0);
+		offset = gbufferProjection * offset;
+		offset.xyz /= offset.w;
+		offset.xyz = offset.xyz * 0.5 + 0.5;
+		// Get depth of texture at sample location
+		float sampleDepth = texture2D(gdepthtex, offset.xy).z;
+		len =  samplePos.z / sampleDepth;
+		float rangeCheck = mySmoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth));
+		occluded += (sampleDepth <= fragDepth ? 1 : 0) * rangeCheck;
+	}
+
+	float occlusion = 1.0 - (occluded / kernelSamples);
+
+	vec3 color = vec3(occlusion);
+
+/* DRAWBUFFERS:5 */
+	gl_FragData[0] = vec4(color, 1.0); //gcolor
+	// gl_FragData[0] = vec4(occlusion, occlusion, occlusion, 1.0); //gcolor
 }
