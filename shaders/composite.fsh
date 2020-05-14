@@ -3,6 +3,24 @@
 // Followed and got some code from this article: https://learnopengl.com/Advanced-Lighting/SSAO
 
 uniform sampler2D gdepthtex;
+uniform sampler2D shadow;
+uniform sampler2D shadowcolor0;
+uniform sampler2D noisetex;
+
+uniform vec3 cameraPosition;
+uniform mat4 gbufferModelViewInverse;
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 shadowModelView;
+uniform mat4 shadowProjection;
+uniform float viewHeight;
+uniform float viewWidth;
+
+const int gcolorFormat = 1;
+const int shadowMapResolution = 4096;
+const int noiseTextureResolution = 64;
+const float sunPathRotation = 25.0;
+const int gdepthFormat = 0;
+const int gnormalFormat = 1;
 uniform sampler2D gnormal;
 uniform sampler2D noisetex;
 
@@ -37,6 +55,46 @@ float rand () {
 	return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
+mat2 getRotationMatrix(in vec2 coord) {
+	float rotationAmount = texture2D(
+		noisetex,
+		coord * vec2(
+			viewWidth / noiseTextureResolution,
+			viewHeight / noiseTextureResolution
+		)
+	).r;
+
+	return mat2(
+		cos(rotationAmount), -sin(rotationAmount),
+		sin(rotationAmount), cos(rotationAmount)
+	);
+}
+
+vec3 getSunVisibility(in vec2 coord) {
+	vec3 shadowCoord = getShadowSpacePosition(coord);
+
+	mat2 rotationMatrix = getRotationMatrix(coord);
+
+	// shadow map averaging
+	vec3 shadowColor = vec3(0);
+	for(int y = -1; y < 2; y++) {
+		for(int x = -1; x < 2; x++) {
+			vec2 offset = vec2(x, y) / shadowMapResolution;
+			offset = rotationMatrix * offset;
+			float shadowMapSample = texture2D(shadow, shadowCoord.st + offset).r;
+			float visibility = step(shadowCoord.z - shadowMapSample, 0.01);
+
+			vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + offset).rgb;
+			shadowColor += mix(colorSample, vec3(1.0), visibility);
+		}
+	}
+
+	return shadowColor * 0.111;
+}
+
+vec3 calculateLitSurface(in vec3 color) {
+	vec3 sunlightVisibility = getSunVisibility(texcoord.st);
+	vec3 ambientLighting = vec3(0.3);
 float lerp(float a, float b, float f) {
     return a + f * (b - a);
 }  
