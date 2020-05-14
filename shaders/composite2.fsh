@@ -73,7 +73,7 @@ float getSunVisibility(in vec2 coord) {
 
 vec3 calculateLitSurface(in vec3 color) {
 	float sunlightVisibility = getSunVisibility(texcoord.st);
-	float ambientLighting = 0.3;
+	float ambientLighting = 0.3 * texture2D(gaux2, texcoord.st).r;
 
 	return color * (sunlightVisibility + ambientLighting);
 }
