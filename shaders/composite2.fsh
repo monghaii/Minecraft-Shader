@@ -79,8 +79,8 @@ vec3 calculateLitSurface(in vec3 color) {
 }
 
 vec3 toHDR (in vec3 color) {
-	vec3 overExposed = color * 1.1;
-	vec3 underExposed = color * 0.2;
+	vec3 overExposed = color * 1.2;
+	vec3 underExposed = color * 0.3;
 	return mix(underExposed, overExposed, color);
 }
 
@@ -123,7 +123,7 @@ void main() {
 
 	float brightness = dot(finalColor, vec3(0.2126, 0.7152, 0.0722)); 
 	
-	vec3 extractedBright = (brightness > 2.5) ? finalColor : vec3(0, 0, 0);
+	vec3 extractedBright = (brightness > 4.0) ? finalColor : vec3(0, 0, 0);
 
 	// finalColor = linearToGamma(adjustedBrightness * finalColor);
 
