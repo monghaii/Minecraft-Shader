@@ -75,6 +75,7 @@ mat2 getRotationMatrix(in vec2 coord) {
 	);
 }
 
+// [0,1] depending on visibility to sun (shadow range)
 vec3 getSunVisibility(in vec2 coord) {
 	vec3 shadowCoord = getShadowSpacePosition(coord);
 
