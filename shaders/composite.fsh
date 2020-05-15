@@ -2,27 +2,9 @@
 
 // Followed and got some code from this article: https://learnopengl.com/Advanced-Lighting/SSAO
 
-uniform sampler2D gdepthtex;
-uniform sampler2D shadow;
-uniform sampler2D shadowcolor0;
-uniform sampler2D noisetex;
-
-uniform vec3 cameraPosition;
-uniform mat4 gbufferModelViewInverse;
-uniform mat4 gbufferProjectionInverse;
-uniform mat4 shadowModelView;
-uniform mat4 shadowProjection;
-uniform float viewHeight;
-uniform float viewWidth;
-
-const int gcolorFormat = 1;
-const int shadowMapResolution = 4096;
-const int noiseTextureResolution = 64;
-const float sunPathRotation = 25.0;
-const int gdepthFormat = 0;
-const int gnormalFormat = 1;
 uniform sampler2D gnormal;
 uniform sampler2D noisetex;
+uniform sampler2D gdepthtex;
 
 uniform float frameTimeCounter;
 uniform float viewWdith;
@@ -53,51 +35,11 @@ float rand () {
 	vec2 co = vec2(inc + cos(noise.r * 25.0 + noise.g + frameTimeCounter * clamp(0.0, 256.0, length(gl_FragCoord))));
 	inc++;
 	return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-}
+} 
 
-mat2 getRotationMatrix(in vec2 coord) {
-	float rotationAmount = texture2D(
-		noisetex,
-		coord * vec2(
-			viewWidth / noiseTextureResolution,
-			viewHeight / noiseTextureResolution
-		)
-	).r;
-
-	return mat2(
-		cos(rotationAmount), -sin(rotationAmount),
-		sin(rotationAmount), cos(rotationAmount)
-	);
-}
-
-vec3 getSunVisibility(in vec2 coord) {
-	vec3 shadowCoord = getShadowSpacePosition(coord);
-
-	mat2 rotationMatrix = getRotationMatrix(coord);
-
-	// shadow map averaging
-	vec3 shadowColor = vec3(0);
-	for(int y = -1; y < 2; y++) {
-		for(int x = -1; x < 2; x++) {
-			vec2 offset = vec2(x, y) / shadowMapResolution;
-			offset = rotationMatrix * offset;
-			float shadowMapSample = texture2D(shadow, shadowCoord.st + offset).r;
-			float visibility = step(shadowCoord.z - shadowMapSample, 0.01);
-
-			vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + offset).rgb;
-			shadowColor += mix(colorSample, vec3(1.0), visibility);
-		}
-	}
-
-	return shadowColor * 0.111;
-}
-
-vec3 calculateLitSurface(in vec3 color) {
-	vec3 sunlightVisibility = getSunVisibility(texcoord.st);
-	vec3 ambientLighting = vec3(0.3);
 float lerp(float a, float b, float f) {
     return a + f * (b - a);
-}  
+} 
 
 mat3 getTBN (in vec3 n) {
 	// get a random rotation vector
@@ -152,14 +94,12 @@ void main() {
 	// For a given fragment, sample points in a hemisphere around it. If a given sample is obstructed by geometry, the geometry will have less depth than the sample. 
 	// Total occlusion = sum of occluded samples / total samples
 	float len;
-	bool fuck;
 	for (int i = 0; i < kernelSamplesInt; i++) {
 		vec3 samplePos = vec3(
 			rand() * 2.0 - 1.0, // from -1.0 to 1.0
 			rand() * 2.0 - 1.0, // from -1.0 to 1.0
 			rand() // from 0.0 to 1.0
 		);
-		fuck = samplePos.z < 0;
 		// Put sample closer to origin
 		float scale = 1.0 / kernelSamples;
 		scale = lerp(0.1, 1.0, scale * scale);
@@ -173,8 +113,7 @@ void main() {
 		offset.xyz /= offset.w;
 		offset.xyz = offset.xyz * 0.5 + 0.5;
 		// Get depth of texture at sample location
-		float sampleDepth = texture2D(gdepthtex, offset.xy).z;
-		len =  samplePos.z / sampleDepth;
+		float sampleDepth = texture2D(gdepthtex, offset.xy).r;
 		float rangeCheck = mySmoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth));
 		occluded += (sampleDepth <= fragDepth ? 1 : 0) * rangeCheck;
 	}

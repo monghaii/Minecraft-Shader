@@ -1,17 +1,21 @@
 #version 120
 
 uniform sampler2D gcolor;
-uniform sampler2D gdepth;
 uniform sampler2D gnormal;
-uniform sampler2D gaux2;
-
 uniform sampler2D gdepthtex;
 uniform sampler2D shadow;
+uniform sampler2D shadowcolor0;
+uniform sampler2D noisetex;
+uniform sampler2D gaux2;
+uniform sampler2D gaux3;
+
 uniform vec3 cameraPosition;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
+uniform float viewHeight;
+uniform float viewWidth;
 
 uniform float screenBrightness;
 
@@ -23,9 +27,17 @@ varying vec3 skyColor;
 
 const float ambientOcclusionLevel = 0.0f;
 
+const int gcolorFormat = 1;
+const int shadowMapResolution = 4096;
+const int noiseTextureResolution = 64;
+const float sunPathRotation = 25.0;
+const int gdepthFormat = 0;
+const int gnormalFormat = 1;
 
-/*  const gdepthFormat = RGBA32F
-	const gcolorFormat = RGBA32F */ 
+/*  
+const int gaux3Format = RGBA32F;
+const int gcolorFormat = RGBA32F; */ 
+/* GAUX3FORMAT: RGBA32F */
 
 vec3 linearToGamma (vec3 color) {
 	return pow(color, vec3(1 / 2.2));
@@ -65,29 +77,59 @@ vec3 getShadowSpacePosition(in vec2 coord) {
 	return positionShadowSpace.xyz * 0.5 + 0.5;
 }
 
-float getSunVisibility(in vec2 coord) {
+mat2 getRotationMatrix(in vec2 coord) {
+	float rotationAmount = texture2D(
+		noisetex,
+		coord * vec2(
+			viewWidth / noiseTextureResolution,
+			viewHeight / noiseTextureResolution
+		)
+	).r;
+
+	return mat2(
+		cos(rotationAmount), -sin(rotationAmount),
+		sin(rotationAmount), cos(rotationAmount)
+	);
+}
+
+vec3 getSunVisibility(in vec2 coord) {
 	vec3 shadowCoord = getShadowSpacePosition(coord);
-	float shadowMapSample = texture2D(shadow, shadowCoord.st).r;
-	return step(shadowCoord.z - shadowMapSample, 0.01);
+
+	mat2 rotationMatrix = getRotationMatrix(coord);
+
+	// shadow map averaging
+	vec3 shadowColor = vec3(0);
+	for(int y = -1; y < 2; y++) {
+		for(int x = -1; x < 2; x++) {
+			vec2 offset = vec2(x, y) / shadowMapResolution;
+			offset = rotationMatrix * offset;
+			float shadowMapSample = texture2D(shadow, shadowCoord.st + offset).r;
+			float visibility = step(shadowCoord.z - shadowMapSample, 0.01);
+
+			vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + offset).rgb;
+			shadowColor += mix(colorSample, vec3(1.0), visibility);
+		}
+	}
+
+	return shadowColor * 0.111;
 }
 
 vec3 calculateLitSurface(in vec3 color) {
-	float sunlightVisibility = getSunVisibility(texcoord.st);
-	float ambientLighting = 0.3 * texture2D(gaux2, texcoord.st).r;
-
+	vec3 sunlightVisibility = getSunVisibility(texcoord.st);
+	vec3 ambientLighting = vec3(0.3);
 	return color * (sunlightVisibility + ambientLighting);
 }
 
 vec3 toHDR (in vec3 color) {
-	vec3 overExposed = color * 1.2;
-	vec3 underExposed = color * 0.3;
+	vec3 overExposed = color * 1.5;
+	vec3 underExposed = color * 0.5;
 	return mix(underExposed, overExposed, color);
 }
 
 void main() {
 	vec3 color = texture2D(gcolor, texcoord).rgb;
 	vec3 normal = texture2D(gnormal, texcoord).rgb;
-	vec4 depth = texture2D(gdepth, texcoord);
+	vec4 lighting = texture2D(gaux3, texcoord);
 	
 	float occlusion = texture2D(gaux2, texcoord).r;
 
@@ -96,15 +138,15 @@ void main() {
 	float adjustedBrightness = 1.0;
 	vec3 albedo = gammaToLinear(color);
 	
-	float emitterLightStrength = depth.x;
-	float skyLightStrength = depth.y;
-	float blockBrightness = depth.z;
-	bool applyPhongShading = depth.w == 0;
+	float emitterLightStrength = lighting.x;
+	float skyLightStrength = lighting.y;
+	float blockBrightness = lighting.z;
+	bool applyPhongShading = lighting.w == 0;
 
 	vec3 directionalLight = skyLightStrength * skyColor * max(dot(normal, lightDir), 0);
 	vec3 emitterColor = blockBrightness == 7.0 ? vec3(1.0, 0.3, 0.3) : vec3(1.0, 0.9, 0.8);
-	vec3 emitterLight =  emitterLightStrength * emitterColor; // For things like torches, glowstone
-	vec3 skyBrightness = skyLightStrength * skyColor * 0.3;
+	vec3 emitterLight = emitterLightStrength * emitterColor; // For things like torches, glowstone
+	vec3 skyBrightness = skyLightStrength * skyColor * 0.2;
 
 	vec3 ambient = albedo * (skyBrightness + emitterLight);
 	ambient *= occlusion;
@@ -115,7 +157,7 @@ void main() {
 	if (!applyPhongShading) {
 		finalColor = albedo; // don't use phong model 
 	} else if (blockBrightness > 0) {
-		finalColor = albedo * (blockBrightness / 3.0);
+		finalColor = albedo * blockBrightness / 2.5;
 	} else {
 		finalColor = phong; // do use phong
 	}
@@ -123,7 +165,7 @@ void main() {
 
 	float brightness = dot(finalColor, vec3(0.2126, 0.7152, 0.0722)); 
 	
-	vec3 extractedBright = (brightness > 4.0) ? finalColor : vec3(0, 0, 0);
+	vec3 extractedBright = (brightness > 4.5) ? finalColor : vec3(0, 0, 0);
 
 	// finalColor = linearToGamma(adjustedBrightness * finalColor);
 
