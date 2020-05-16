@@ -6,7 +6,14 @@
 
 varying vec2 lmcoord;
 varying vec2 texcoord;
+varying vec3 normal;
 varying vec4 glcolor;
+varying float brightness;
+
+const float LAVA = 10010.0;
+const float FIRE = 10051.0;
+const float REDSTONE_TORCH = 10076.0;
+const float GLOWSTONE = 10089.0;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -46,11 +53,13 @@ void main() {
 	lmcoord  = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;
 	glcolor = gl_Color;
 
+	float blockId = mc_Entity.x;
+
 	vec4 position = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;
 	vec3 worldpos = position.xyz + cameraPosition;
 	bool istopv = gl_MultiTexCoord0.t < mc_midTexCoord.t;
 
-	if (mc_Entity.x == ENTITY_LOWERGRASS || mc_Entity.x == ENTITY_UPPERGRASS)
+	if (blockId == ENTITY_LOWERGRASS || blockId == ENTITY_UPPERGRASS)
 			position.xyz += calcMove(worldpos.xyz,
 			0.0041,
 			0.0070,
@@ -62,7 +71,7 @@ void main() {
 			vec3(0.4,0.0,0.4));
 
 	
-	if ( mc_Entity.x == ENTITY_SMALLGRASS)
+	if ( blockId == ENTITY_SMALLGRASS)
 		position.xyz += calcMove(worldpos.xyz,
 			0.0041,
 			0.0070,
@@ -83,4 +92,12 @@ void main() {
   	// }
 	
 	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
+	
+	if ( blockId == LAVA ||blockId == FIRE || blockId == REDSTONE_TORCH || blockId == GLOWSTONE ) {
+		brightness = blockId == REDSTONE_TORCH ? 7.0 : 15.0;
+	} else {
+		brightness = 0;
+	}
+
+	normal = normalize(gl_NormalMatrix * gl_Normal);
 }
