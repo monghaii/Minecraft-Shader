@@ -14,6 +14,9 @@ const float LAVA = 10010.0;
 const float FIRE = 10051.0;
 const float REDSTONE_TORCH = 10076.0;
 const float GLOWSTONE = 10089.0;
+const float SMALLGRASS = 10031.0;
+const float LOWERGRASS = 100175.0;
+const float UPPERGRASS = 100176.0;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -59,7 +62,7 @@ void main() {
 	vec3 worldpos = position.xyz + cameraPosition;
 	bool istopv = gl_MultiTexCoord0.t < mc_midTexCoord.t;
 
-	if (blockId == ENTITY_LOWERGRASS || blockId == ENTITY_UPPERGRASS)
+	if (blockId == LOWERGRASS || blockId == UPPERGRASS)
 			position.xyz += calcMove(worldpos.xyz,
 			0.0041,
 			0.0070,
@@ -71,7 +74,7 @@ void main() {
 			vec3(0.4,0.0,0.4));
 
 	
-	if ( blockId == ENTITY_SMALLGRASS)
+	if ( blockId == SMALLGRASS)
 		position.xyz += calcMove(worldpos.xyz,
 			0.0041,
 			0.0070,
