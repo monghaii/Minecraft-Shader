@@ -31,11 +31,23 @@ vec3 linearToGamma (vec3 color) {
 	return pow(color, vec3(1 / 2.2));
 }
 
+// Creates a vignette using the distance to the user
+void vignette(inout vec3 color){
+	float dist = distance(texcoord.st, vec2(0.5)) * 2.0;
+	dist /= 1.5142f;
+
+	dist = pow(dist, 1.1f);
+
+	color.rgb  *= (1.0 - dist) / 0.80; // editable: smaller decimal = more contrast
+}
+
 void main() {
 	vec3 color = texture2D(gcolor, texcoord).rgb;
     vec3 bloom = texture2D(gaux1, texcoord).rgb;
 
     color += bloom;
+
+    vignette(color);
 
     color = color / (color + vec3(1.0)); // Tonemap
 
